@@ -25,8 +25,8 @@ $loggedIn = isset($_SESSION['username']);
 
 					<span class="me-2 text-primary" role="button" onclick="showHelp()">Help</span>
 					<?php if (!$loggedIn): ?>
-						<span class="me-2 text-primary" role="button" onclick="location.href='showSignup()'">Signup</span>
-						<span class="text-primary" role="button" onclick="location.href='showLogin()'">login</span>
+						<span class="me-2 text-primary" role="button" onclick="showSignup()">Signup</span>
+						<span class="text-primary" role="button" onclick="showLogin()">login</span>
 					<?php else: ?>
 						<span class="text-primary" role="button" onclick="location.href='logout.php'">logout</span>
 					<?php endif; ?>
