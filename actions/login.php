@@ -1,5 +1,7 @@
 <?php
 
+header('Content-Type: application/json');  // <-- Added JSON header
+
 // Start the session
 session_start(); 
 
@@ -23,18 +25,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Password is correct, start session
             $_SESSION['username'] = $username;
             $_SESSION['screenName'] = $screenName;
-            echo "Login successful";
+            echo json_encode([
+                'success' => true,
+                'message' => 'Login successful'
+            ]);
         } else {
             // Wrong password
-            echo "Incorrect password.";
+            echo json_encode([
+                'success' => false,
+                'message' => 'Incorrect password.'
+            ]);
         }
     } else {
         // No such user found
-        echo "Username not found.";
+        echo json_encode([
+            'success' => false,
+            'message' => 'Username not found.'
+        ]);
     }    
     $stmt->close();
 
-    // Close the connectionS
+    // Close the connection
     $conn->close();
+
+    exit();  // <-- Important to stop script after outputting JSON
 }
-?>

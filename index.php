@@ -103,7 +103,7 @@ $loggedIn = isset($_SESSION['username']);
 			document.getElementById('signupForm')?.addEventListener('submit', async (e) => {
 				e.preventDefault();
 				const formData = new FormData(e.target);
-				const response = await fetch('signup.php', {
+				const response = await fetch('actions/signup.php', {
 					method: 'POST',
 					body: formData
 				});
@@ -117,7 +117,7 @@ $loggedIn = isset($_SESSION['username']);
 			document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
 				e.preventDefault();
 				const formData = new FormData(e.target);
-				const response = await fetch('login.php', {
+				const response = await fetch('actions/login.php', {
 					method: 'POST',
 					body: formData
 				});
