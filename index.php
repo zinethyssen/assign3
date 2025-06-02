@@ -79,80 +79,163 @@ $loggedIn = isset($_SESSION['username']);
 		<div id="chatroom"></div>
 
 		<script>
-			async function logout() {
-				const res = await fetch('/actions/logout.php', {
-					method: 'POST'
-				});
-				const result = await res.json();
-				if (result.success) {
-					location.href = result.redirect;
-				}
+		async function logout() {
+			const res = await fetch('/actions/logout.php', { method: 'POST' });
+			const result = await res.json();
+			if (result.success) {
+			location.href = result.redirect;
 			}
+		}
 
-			function showHelp() {
-				document.getElementById('helpOverlay').style.display = 'flex';
-			}
+		function showHelp() {
+			document.getElementById('helpOverlay').style.display = 'flex';
+		}
 
-			function hideHelp() {
-				document.getElementById('helpOverlay').style.display = 'none';
-			}
+		function hideHelp() {
+			document.getElementById('helpOverlay').style.display = 'none';
+		}
 
-			function showSignup() {
-				document.getElementById('signupOverlay').style.display = 'flex';
-			}
+		function showSignup() {
+			document.getElementById('signupOverlay').style.display = 'flex';
+		}
 
-			function hideSignup() {
-				document.getElementById('signupOverlay').style.display = 'none';
-			}
+		function hideSignup() {
+			document.getElementById('signupOverlay').style.display = 'none';
+		}
 
-			function showLogin() {
-				document.getElementById('loginOverlay').style.display = 'flex';
-			}
+		function showLogin() {
+			document.getElementById('loginOverlay').style.display = 'flex';
+		}
 
-			function hideLogin() {
-				document.getElementById('loginOverlay').style.display = 'none';
-			}
+		function hideLogin() {
+			document.getElementById('loginOverlay').style.display = 'none';
+		}
 
-			document.getElementById('signupForm')?.addEventListener('submit', async (e) => {
-				e.preventDefault();
-				const formData = new FormData(e.target);
-				const response = await fetch('actions/signup.php', {
-					method: 'POST',
-					body: formData
-				});
-				const result = await response.json();
-				document.getElementById('signupResult').textContent = result.message;
-				if (result.success) {
-					setTimeout(() => location.reload(), 1000);
-				}
+		async function submitRoom() {
+			const name = document.getElementById("roomName").value.trim();
+			const key = document.getElementById("roomKey").value.trim();
+
+			const res = await fetch('/actions/createRoom.php', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name, key })
 			});
 
-			document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
-				e.preventDefault();
-				const formData = new FormData(e.target);
-				const response = await fetch('actions/login.php', {
-					method: 'POST',
-					body: formData
-				});
-				const result = await response.json();
-				document.getElementById('loginResult').textContent = result.message;
-				if (result.success) {
-					// setTimeout(() => location.reload(), 1000);
-					const chatroomResponse = await fetch('chatroom.php');
-        			const chatroomHTML = await chatroomResponse.text();
-        			// Example: replace a container's innerHTML with chatroom UI
-        			document.getElementById('chatroom').innerHTML = chatroomHTML;
-					hideLogin();
+			const text = await res.text();
+			console.log('Server response:', text);
 
-					const loginSpan = document.querySelector('span.text-primary[onclick^="showLogin"]');
-					if (loginSpan) {
-					loginSpan.onclick = logout;
-					loginSpan.innerHTML = 'Logout';
-					}
-					document.getElementById('signup').style.display = 'none';
+			try {
+				const result = JSON.parse(text);
+				const msgBox = document.getElementById("createRoomMsg");
+
+				if (result.success) {
+					msgBox.classList.remove("text-danger");
+					msgBox.classList.add("text-success");
+					msgBox.textContent = "Room created!";
+
+					const row = document.createElement('div');
+					row.className = 'd-flex text-center py-2 px-3 border-bottom';
+
+					const nameDiv = document.createElement('div');
+					nameDiv.className = 'flex-fill';
+					nameDiv.textContent = name;
+
+					const statusDiv = document.createElement('div');
+					statusDiv.className = 'flex-fill';
+					const img = document.createElement('img');
+					img.src = key ? '../images/lock.png' : '../images/unlock.jpeg';
+					img.alt = key ? 'Locked' : 'Unlocked';
+					img.style.width = img.style.height = '20px';
+					statusDiv.appendChild(img);
+
+					const joinDiv = document.createElement('div');
+					joinDiv.className = 'flex-fill';
+					const btn = document.createElement('button');
+					btn.className = 'btn btn-sm btn-primary';
+					btn.textContent = 'Join';
+					joinDiv.appendChild(btn);
+
+					row.append(nameDiv, statusDiv, joinDiv);
+					document.getElementById('room-list').appendChild(row);
+
+					document.getElementById('overlay-container').innerHTML = '';
+				} else {
+					msgBox.classList.remove("text-success");
+					msgBox.classList.add("text-danger");
+					msgBox.textContent = result.error || "Failed to create room.";
 				}
+			} catch (err) {
+				console.error('Invalid JSON from server:', err);
+			}
+		}
+
+		document.getElementById('signupForm')?.addEventListener('submit', async (e) => {
+			e.preventDefault();
+			const formData = new FormData(e.target);
+			const response = await fetch('actions/signup.php', {
+			method: 'POST',
+			body: formData
 			});
-			</script>
+			const result = await response.json();
+			document.getElementById('signupResult').textContent = result.message;
+			if (result.success) {
+			setTimeout(() => location.reload(), 1000);
+			}
+		});
+
+		document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
+			e.preventDefault();
+			const formData = new FormData(e.target);
+			const response = await fetch('actions/login.php', {
+			method: 'POST',
+			body: formData
+			});
+			const result = await response.json();
+			document.getElementById('loginResult').textContent = result.message;
+			if (result.success) {
+			const chatroomResponse = await fetch('chatroom.php');
+			const chatroomHTML = await chatroomResponse.text();
+			document.getElementById('chatroom').innerHTML = chatroomHTML;
+			hideLogin();
+
+			const loginSpan = document.querySelector('span.text-primary[onclick^="showLogin"]');
+			if (loginSpan) {
+				loginSpan.onclick = logout;
+				loginSpan.innerHTML = 'Logout';
+			}
+			document.getElementById('signup').style.display = 'none';
+			}
+		});
+
+		document.getElementById('chatroom').addEventListener('click', async (e) => {
+			if (e.target.id === 'add-room') {
+			const response = await fetch('/actions/newRoom.php');
+			const html = await response.text();
+			const container = document.getElementById('overlay-container');
+			container.innerHTML = html;
+
+			// Run scripts embedded in fetched HTML
+			container.querySelectorAll('script').forEach(oldScript => {
+			try {
+				const newScript = document.createElement('script');
+				if (oldScript.src) {
+				newScript.src = oldScript.src;
+				} else if (oldScript.textContent.trim() !== '') {
+				newScript.textContent = oldScript.textContent;
+				} else {
+				// Skip empty scripts
+				return;
+				}
+				document.body.appendChild(newScript);
+				oldScript.remove();
+			} catch (e) {
+				console.error('Failed to inject script:', e);
+			}
+			});
+
+			}
+		});
+		</script>
 
     
 </body>
