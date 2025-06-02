@@ -6,7 +6,7 @@ header('Content-Type: application/json');  // <-- Added JSON header
 session_start(); 
 
 // Include the database connection
-require 'db.php'; 
+require '../db.php'; 
 
 // Get the user input
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

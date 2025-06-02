@@ -25,10 +25,10 @@ $loggedIn = isset($_SESSION['username']);
 
 					<span class="me-2 text-primary" role="button" onclick="showHelp()">Help</span>
 					<?php if (!$loggedIn): ?>
-						<span class="me-2 text-primary" role="button" onclick="showSignup()">Signup</span>
-						<span class="text-primary" role="button" onclick="showLogin()">login</span>
+						<span id="signup" class="me-2 text-primary" role="button" onclick="showSignup()">Signup</span>
+						<span class="text-primary" role="button" onclick="showLogin()">Login</span>
 					<?php else: ?>
-						<span class="text-primary" role="button" onclick="location.href='logout.php'">logout</span>
+						<span class="text-primary" role="button" onclick="logout()">Logout</span>
 					<?php endif; ?>
 					</div>
 				</div>
@@ -62,20 +62,33 @@ $loggedIn = isset($_SESSION['username']);
 		</div>
 
 		<!-- Login Modal -->
-			<div id="loginOverlay" style="display: none;" class="overlay">
-			<div class="modal-box">
-				<div class="close-btn" onclick="hideLogin()">[x]</div>
-				<h2>Login</h2>
-				<form id="loginForm">
-					<label>Username: <input type="text" name="username" required></label><br><br>
-					<label>Password: <input type="password" name="password" required></label><br><br>
-					<button type="submit">Log In</button>
-				</form>
-				<div id="loginResult" style="margin-top: 10px;"></div>
-			</div>
+		<div id="loginOverlay" style="display: none;" class="overlay">
+		<div class="modal-box">
+			<div class="close-btn" onclick="hideLogin()">[x]</div>
+			<h2>Login</h2>
+			<form id="loginForm">
+				<label>Username: <input type="text" name="username" required></label><br><br>
+				<label>Password: <input type="password" name="password" required></label><br><br>
+				<button type="submit">Log In</button>
+			</form>
+			<div id="loginResult" style="margin-top: 10px;"></div>
+		</div>
+		</div>
 
+		<!-- chatroom load in -->
+		<div id="chatroom"></div>
 
 		<script>
+			async function logout() {
+				const res = await fetch('/actions/logout.php', {
+					method: 'POST'
+				});
+				const result = await res.json();
+				if (result.success) {
+					location.href = result.redirect;
+				}
+			}
+
 			function showHelp() {
 				document.getElementById('helpOverlay').style.display = 'flex';
 			}
@@ -124,7 +137,19 @@ $loggedIn = isset($_SESSION['username']);
 				const result = await response.json();
 				document.getElementById('loginResult').textContent = result.message;
 				if (result.success) {
-					setTimeout(() => location.reload(), 1000);
+					// setTimeout(() => location.reload(), 1000);
+					const chatroomResponse = await fetch('chatroom.php');
+        			const chatroomHTML = await chatroomResponse.text();
+        			// Example: replace a container's innerHTML with chatroom UI
+        			document.getElementById('chatroom').innerHTML = chatroomHTML;
+					hideLogin();
+
+					const loginSpan = document.querySelector('span.text-primary[onclick^="showLogin"]');
+					if (loginSpan) {
+					loginSpan.onclick = logout;
+					loginSpan.innerHTML = 'Logout';
+					}
+					document.getElementById('signup').style.display = 'none';
 				}
 			});
 			</script>
