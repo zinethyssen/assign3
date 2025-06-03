@@ -54,20 +54,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->bind_param("sss", $username, $hashedPassword, $screenName);
 
     if ($stmt->execute()) {
-        // Automatically log the user in
-        $_SESSION['username'] = $username;
-        $_SESSION['screenName'] = $screenName;
+    // Automatically log the user in
+    $_SESSION['username'] = $username;
+    $_SESSION['screenName'] = $screenName;
 
-        echo json_encode([
-            'success' => true,
-            'message' => 'Signup successful'
-        ]);
-    } else {
-        echo json_encode([
-            'success' => false,
-            'message' => 'Signup failed. Please try again.'
-        ]);
-    }
+    echo json_encode([
+        'success' => true,
+        'message' => 'Signup successful',
+        'redirect' => 'chatroom.php'
+    ]);
+    exit();
+} else {
+    echo json_encode([
+        'success' => false,
+        'message' => 'Signup failed. Please try again.'
+    ]);
+    exit();
+}
+
 
     $stmt->close();
     $conn->close();

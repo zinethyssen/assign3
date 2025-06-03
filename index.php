@@ -80,7 +80,7 @@ $loggedIn = isset($_SESSION['username']);
 
 		<script>
 		async function logout() {
-			const res = await fetch('/actions/logout.php', { method: 'POST' });
+			const res = await fetch('actions/logout.php', { method: 'POST' });
 			const result = await res.json();
 			if (result.success) {
 			location.href = result.redirect;
@@ -170,18 +170,37 @@ $loggedIn = isset($_SESSION['username']);
 		}
 
 		document.getElementById('signupForm')?.addEventListener('submit', async (e) => {
-			e.preventDefault();
-			const formData = new FormData(e.target);
-			const response = await fetch('actions/signup.php', {
-			method: 'POST',
-			body: formData
-			});
-			const result = await response.json();
-			document.getElementById('signupResult').textContent = result.message;
-			if (result.success) {
-			setTimeout(() => location.reload(), 1000);
-			}
-		});
+    e.preventDefault();
+    const formData = new FormData(e.target);
+
+    try {
+        const response = await fetch('actions/signup.php', {
+            method: 'POST',
+            body: formData
+        });
+
+        const text = await response.text();
+        console.log("Raw response from signup.php:", text);
+
+        let result;
+        try {
+            result = JSON.parse(text);
+        } catch (err) {
+            document.getElementById('signupResult').textContent = "Invalid JSON response from server.";
+            return;
+        }
+
+        document.getElementById('signupResult').textContent = result.message;
+        if (result.success) {
+			window.location.href = result.redirect || 'chatroom.php';
+		}
+
+    } catch (err) {
+        console.error("Signup request failed:", err);
+        document.getElementById('signupResult').textContent = "Signup failed. Could not reach server.";
+    }
+});
+
 
 		document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
 			e.preventDefault();
