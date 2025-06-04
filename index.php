@@ -2,7 +2,6 @@
 session_start();
 $loggedIn = isset($_SESSION['username']);
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,7 +12,6 @@ $loggedIn = isset($_SESSION['username']);
     <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-    <!-- Header -->
     <header class="border-top border-bottom p-2">
         <div class="text-center fw-bold fs-5">Chat room via PHP web sockets</div>
         <div class="container">
@@ -33,7 +31,6 @@ $loggedIn = isset($_SESSION['username']);
         </div>
     </header>
 
-    <!-- Help Overlay -->
     <div id="helpOverlay">
         <div id="helpBox">
             <div id="closeHelp" onclick="hideHelp()">[x]</div>
@@ -42,7 +39,6 @@ $loggedIn = isset($_SESSION['username']);
         </div>
     </div>
 
-    <!-- Signup Modal -->
     <div id="signupOverlay" style="display: none;" class="overlay">
         <div class="modal-box">
             <div class="close-btn" onclick="hideSignup()">[x]</div>
@@ -57,7 +53,6 @@ $loggedIn = isset($_SESSION['username']);
         </div>
     </div>
 
-    <!-- Login Modal -->
     <div id="loginOverlay" style="display: none;" class="overlay">
         <div class="modal-box">
             <div class="close-btn" onclick="hideLogin()">[x]</div>
@@ -71,45 +66,27 @@ $loggedIn = isset($_SESSION['username']);
         </div>
     </div>
 
-    <!-- Chatroom Loader -->
     <div id="chatroom"></div>
 
     <script>
     async function logout() {
-        const res = await fetch('/actions/logout.php', { method: 'POST' });
+        const res = await fetch('actions/logout.php', { method: 'POST' });
         const result = await res.json();
         if (result.success) location.href = result.redirect;
     }
 
-    function showHelp() {
-        document.getElementById('helpOverlay').style.display = 'flex';
-    }
-
-    function hideHelp() {
-        document.getElementById('helpOverlay').style.display = 'none';
-    }
-
-    function showSignup() {
-        document.getElementById('signupOverlay').style.display = 'flex';
-    }
-
-    function hideSignup() {
-        document.getElementById('signupOverlay').style.display = 'none';
-    }
-
-    function showLogin() {
-        document.getElementById('loginOverlay').style.display = 'flex';
-    }
-
-    function hideLogin() {
-        document.getElementById('loginOverlay').style.display = 'none';
-    }
+    function showHelp() { document.getElementById('helpOverlay').style.display = 'flex'; }
+    function hideHelp() { document.getElementById('helpOverlay').style.display = 'none'; }
+    function showSignup() { document.getElementById('signupOverlay').style.display = 'flex'; }
+    function hideSignup() { document.getElementById('signupOverlay').style.display = 'none'; }
+    function showLogin() { document.getElementById('loginOverlay').style.display = 'flex'; }
+    function hideLogin() { document.getElementById('loginOverlay').style.display = 'none'; }
 
     async function submitRoom() {
         const name = document.getElementById("roomName").value.trim();
         const key = document.getElementById("roomKey").value.trim();
 
-        const res = await fetch('/actions/createRoom.php', {
+        const res = await fetch('actions/createRoom.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, key })
@@ -136,7 +113,7 @@ $loggedIn = isset($_SESSION['username']);
                 const statusDiv = document.createElement('div');
                 statusDiv.className = 'flex-fill';
                 const img = document.createElement('img');
-                img.src = key ? '../images/lock.png' : '../images/unlock.jpeg';
+                img.src = key ? 'images/lock.png' : 'images/unlock.jpeg';
                 img.alt = key ? 'Locked' : 'Unlocked';
                 img.style.width = img.style.height = '20px';
                 statusDiv.appendChild(img);
@@ -146,6 +123,11 @@ $loggedIn = isset($_SESSION['username']);
                 const btn = document.createElement('button');
                 btn.className = 'btn btn-sm btn-primary';
                 btn.textContent = 'Join';
+                btn.addEventListener('click', () => {
+                    const isLocked = !!key;
+                    console.log("Join button clicked for new room:", name, "locked?", isLocked);
+                    joinRoom(name, isLocked);
+                });
                 joinDiv.appendChild(btn);
 
                 row.append(nameDiv, statusDiv, joinDiv);
@@ -200,55 +182,27 @@ $loggedIn = isset($_SESSION['username']);
 
     document.getElementById('chatroom').addEventListener('click', async (e) => {
         if (e.target.id === 'add-room') {
-            const response = await fetch('/actions/newRoom.php');
+            const response = await fetch('actions/newRoom.php');
             const html = await response.text();
             const container = document.getElementById('overlay-container');
             container.innerHTML = html;
-
-            container.querySelectorAll('script').forEach(oldScript => {
-                try {
-                    const newScript = document.createElement('script');
-                    if (oldScript.src) {
-                        newScript.src = oldScript.src;
-                    } else if (oldScript.textContent.trim() !== '') {
-                        newScript.textContent = oldScript.textContent;
-                    } else {
-                        return;
-                    }
-                    document.body.appendChild(newScript);
-                    oldScript.remove();
-                } catch (e) {
-                    console.error('Failed to inject script:', e);
-                }
-            });
         }
     });
 
-    // === WebSocket logic for real-time chat ===
     function initWebSocket() {
-        const ws = new WebSocket('ws://localhost:8080'); // change to your WebSocket server URL if different
+        const ws = new WebSocket(`ws://${window.location.hostname}:8090`);
 
         const chatMessages = document.getElementById('chatMessages');
         const chatForm = document.getElementById('chatForm');
         const inputMessage = document.getElementById('inputMessage');
         const roomList = document.getElementById('room-list');
 
-        const username = <?php echo json_encode($loggedIn ? $_SESSION['username'] : ''); ?>;
         const screenName = <?php echo json_encode($loggedIn && isset($_SESSION['screenName']) ? $_SESSION['screenName'] : ''); ?>;
-
         let currentRoomId = null;
 
         ws.onopen = () => {
             console.log('WebSocket connected');
-            fetchRooms();
-        };
-
-        ws.onclose = () => {
-            console.log('WebSocket disconnected');
-        };
-
-        ws.onerror = (e) => {
-            console.error('WebSocket error:', e);
+            ws.send(JSON.stringify({ action: 'getRooms' }));
         };
 
         ws.onmessage = (event) => {
@@ -266,8 +220,8 @@ $loggedIn = isset($_SESSION['username']);
                     const statusDiv = document.createElement('div');
                     statusDiv.className = 'flex-fill';
                     const img = document.createElement('img');
-                    img.src = room.key ? '../images/lock.png' : '../images/unlock.jpeg';
-                    img.alt = room.key ? 'Locked' : 'Unlocked';
+                    img.src = room.roomkey ? 'images/lock.png' : 'images/unlock.jpeg';
+                    img.alt = room.roomkey ? 'Locked' : 'Unlocked';
                     img.style.width = img.style.height = '20px';
                     statusDiv.appendChild(img);
 
@@ -276,7 +230,10 @@ $loggedIn = isset($_SESSION['username']);
                     const btn = document.createElement('button');
                     btn.className = 'btn btn-sm btn-primary';
                     btn.textContent = 'Join';
-                    btn.addEventListener('click', () => joinRoom(room.id));
+                    btn.addEventListener('click', () => {
+                        const isLocked = !!room.roomkey;
+                        joinRoom(room.name, isLocked);
+                    });
                     joinDiv.appendChild(btn);
 
                     div.append(nameDiv, statusDiv, joinDiv);
@@ -288,17 +245,26 @@ $loggedIn = isset($_SESSION['username']);
                 messageEl.textContent = (isMe ? 'me: ' : data.sender + ': ') + data.message;
                 chatMessages.appendChild(messageEl);
                 chatMessages.scrollTop = chatMessages.scrollHeight;
+            } else if (data.type === 'error') {
+                alert(data.message);
             }
         };
 
-        function fetchRooms() {
-            ws.send(JSON.stringify({ action: 'getRooms' }));
-        }
-
-        function joinRoom(roomId) {
-            currentRoomId = roomId;
-            ws.send(JSON.stringify({ action: 'join', roomId: roomId, screenName }));
+        function joinRoom(roomName, isLocked = false) {
+            let roomKey = "";
+            if (isLocked) {
+                roomKey = prompt(`Enter the key for "${roomName}":`);
+                if (roomKey === null) return;
+            }
+            currentRoomId = roomName;
+            ws.send(JSON.stringify({
+                action: 'join',
+                room: roomName,
+                screenname: screenName,
+                key: roomKey
+            }));
             chatMessages.innerHTML = '';
+            document.getElementById('chatroom-name').textContent = roomName;
         }
 
         chatForm?.addEventListener('submit', (e) => {
@@ -327,6 +293,5 @@ $loggedIn = isset($_SESSION['username']);
         };
     <?php endif; ?>
     </script>
-
 </body>
 </html>

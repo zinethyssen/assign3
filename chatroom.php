@@ -1,5 +1,12 @@
 <!-- chatroom-ui.php -->
-
+<?php
+session_start();
+if (!isset($_SESSION['username'])) {
+    header('Location: index.php');
+    exit();
+}
+?>
+<!DOCTYPE html>
 <div class="container-fluid mt-3">
     <div class="row" style="height: 80vh;">
         <!-- Left panel: list of chat rooms -->
@@ -27,9 +34,10 @@
                 <div><strong>User2:</strong> Hi there!</div>
             </div>
             <form id="chatForm" class="d-flex">
-                <input type="text" id="chatInput" class="form-control me-2" placeholder="Type a message..." autocomplete="off" required>
+                <input type="text" id="inputMessage" class="form-control me-2" placeholder="Type a message..." autocomplete="off" required>
                 <button type="submit" class="btn btn-primary">Send</button>
             </form>
         </div>
     </div>
 </div>
+</html>

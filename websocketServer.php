@@ -1,167 +1,249 @@
 <?php
-$EOF = 3;
-$port = 8080;
+session_start();
+$loggedIn = isset($_SESSION['username']);
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat Room via PHP Web Sockets</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+    <header class="border-top border-bottom p-2">
+        <div class="text-center fw-bold fs-5">Chat room via PHP web sockets</div>
+        <div class="container">
+            <div class="row align-items-center mt-1">
+                <div class="col-4"></div>
+                <div class="col-4 text-center small">By: Eric Locke and Zinet Hyssen</div>
+                <div class="col-4 text-end small">
+                    <span class="me-2 text-primary" role="button" onclick="showHelp()">Help</span>
+                    <?php if (!$loggedIn): ?>
+                        <span id="signup" class="me-2 text-primary" role="button" onclick="showSignup()">Signup</span>
+                        <span class="text-primary" role="button" onclick="showLogin()">Login</span>
+                    <?php else: ?>
+                        <span class="text-primary" role="button" onclick="logout()">Logout</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </header>
 
-$serverSocket = createServerConnection($port);
-socket_listen($serverSocket) or die("Unable to start server!");
+    <div id="helpOverlay">
+        <div id="helpBox">
+            <div id="closeHelp" onclick="hideHelp()">[x]</div>
+            <h2>Chat Room Instructions</h2>
+            <p>instructions</p>
+        </div>
+    </div>
 
-echo "Server running on port $port\n";
+    <div id="signupOverlay" style="display: none;" class="overlay">
+        <div class="modal-box">
+            <div class="close-btn" onclick="hideSignup()">[x]</div>
+            <h2>Signup</h2>
+            <form id="signupForm">
+                <label>Username: <input type="text" name="username" required></label><br /><br />
+                <label>Password: <input type="password" name="password" required></label><br /><br />
+                <label>Screen Name: <input type="text" name="screenName" required></label><br /><br />
+                <button type="submit">Sign Up</button>
+            </form>
+            <div id="signupResult" style="margin-top: 10px;"></div>
+        </div>
+    </div>
 
-// Keep track of all connected clients and their metadata
-$listOfConnectedClients = [];
-$clientInfo = []; // socket => ['screenname' => 'Eric', 'room' => 'Room1']
+    <div id="loginOverlay" style="display: none;" class="overlay">
+        <div class="modal-box">
+            <div class="close-btn" onclick="hideLogin()">[x]</div>
+            <h2>Login</h2>
+            <form id="loginForm">
+                <label>Username: <input type="text" name="username" required></label><br /><br />
+                <label>Password: <input type="password" name="password" required></label><br /><br />
+                <button type="submit">Log In</button>
+            </form>
+            <div id="loginResult" style="margin-top: 10px;"></div>
+        </div>
+    </div>
 
-do {
-    $clientsWithData = waitForIncomingMessageFromClients($listOfConnectedClients, $serverSocket);
+    <div id="chatroom"></div>
 
-    if (in_array($serverSocket, $clientsWithData)) {
-        $newSocket = socket_accept($serverSocket);
-        if (performHandshake($newSocket)) {
-            $listOfConnectedClients[] = $newSocket;
-            echo "New client connected. Total: " . count($listOfConnectedClients) . "\n";
-        } else {
-            disconnectClient($newSocket, $listOfConnectedClients, $clientInfo, $clientsWithData);
+    <script>
+    let ws;
+    let currentRoomId = null;
+    let screenName = '';
+
+    function joinRoom(roomName, isLocked = false) {
+        let roomKey = "";
+        if (isLocked) {
+            roomKey = prompt(`Enter the key for "${roomName}":`);
+            if (roomKey === null) return;
         }
-    } else {
-        foreach ($clientsWithData as $clientSocket) {
-            $len = @socket_recv($clientSocket, $buffer, 1024, 0);
-            if ($len === false || $len == 0) {
-                disconnectClient($clientSocket, $listOfConnectedClients, $clientInfo, $clientsWithData);
+        currentRoomId = roomName;
+        ws.send(JSON.stringify({
+            action: 'join',
+            room: roomName,
+            screenname: screenName,
+            key: roomKey
+        }));
+        document.getElementById('chatMessages').innerHTML = '';
+        document.getElementById('chatroom-name').textContent = roomName;
+    }
+
+    async function logout() {
+        const res = await fetch('actions/logout.php', { method: 'POST' });
+        const result = await res.json();
+        if (result.success) location.href = result.redirect;
+    }
+
+    function showHelp() { document.getElementById('helpOverlay').style.display = 'flex'; }
+    function hideHelp() { document.getElementById('helpOverlay').style.display = 'none'; }
+    function showSignup() { document.getElementById('signupOverlay').style.display = 'flex'; }
+    function hideSignup() { document.getElementById('signupOverlay').style.display = 'none'; }
+    function showLogin() { document.getElementById('loginOverlay').style.display = 'flex'; }
+    function hideLogin() { document.getElementById('loginOverlay').style.display = 'none'; }
+
+    async function submitRoom() {
+        const name = document.getElementById("roomName").value.trim();
+        const key = document.getElementById("roomKey").value.trim();
+
+        const res = await fetch('actions/createRoom.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, key })
+        });
+
+        const text = await res.text();
+        const msgBox = document.getElementById("createRoomMsg");
+
+        try {
+            const result = JSON.parse(text);
+
+            if (result.success) {
+                msgBox.classList.remove("text-danger");
+                msgBox.classList.add("text-success");
+                msgBox.textContent = "Room created!";
+
+                const row = document.createElement('div');
+                row.className = 'd-flex text-center py-2 px-3 border-bottom';
+
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'flex-fill';
+                nameDiv.textContent = name;
+
+                const statusDiv = document.createElement('div');
+                statusDiv.className = 'flex-fill';
+                const img = document.createElement('img');
+                img.src = key ? 'images/lock.png' : 'images/unlock.jpeg';
+                img.alt = key ? 'Locked' : 'Unlocked';
+                img.style.width = img.style.height = '20px';
+                statusDiv.appendChild(img);
+
+                const joinDiv = document.createElement('div');
+                joinDiv.className = 'flex-fill';
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-sm btn-primary';
+                btn.textContent = 'Join';
+                btn.addEventListener('click', () => {
+                    const isLocked = !!key;
+                    console.log("Join button clicked for new room:", name, "locked?", isLocked);
+                    joinRoom(name, isLocked);
+                });
+                joinDiv.appendChild(btn);
+
+                row.append(nameDiv, statusDiv, joinDiv);
+                document.getElementById('room-list').appendChild(row);
+                document.getElementById('overlay-container').innerHTML = '';
             } else {
-                $message = unmask($buffer);
-                if (empty($message)) continue;
-
-                $decoded = json_decode($message, true);
-                if (!$decoded || !isset($decoded['action'])) continue;
-
-                if ($decoded['action'] === 'join') {
-                    $screenname = $decoded['screenname'] ?? 'anon';
-                    $room = $decoded['room'] ?? 'lobby';
-                    $clientInfo[(int)$clientSocket] = ['screenname' => $screenname, 'room' => $room];
-                    echo "$screenname joined $room\n";
-                }
-
-                if ($decoded['action'] === 'message') {
-                    $text = $decoded['text'] ?? '';
-                    $room = $clientInfo[(int)$clientSocket]['room'] ?? '';
-                    $sender = $clientInfo[(int)$clientSocket]['screenname'] ?? 'anon';
-
-                    foreach ($listOfConnectedClients as $otherSocket) {
-                        if ($otherSocket == $clientSocket) {
-                            $out = json_encode(['from' => 'me', 'text' => $text]);
-                        } else if (($clientInfo[(int)$otherSocket]['room'] ?? '') === $room) {
-                            $out = json_encode(['from' => $sender, 'text' => $text]);
-                        } else {
-                            continue;
-                        }
-                        socket_write($otherSocket, mask($out), strlen($out));
-                    }
-                }
+                msgBox.classList.remove("text-success");
+                msgBox.classList.add("text-danger");
+                msgBox.textContent = result.error || "Failed to create room.";
             }
-        }
-    }
-} while (true);
-
-// -------------------- Helper Functions --------------------
-
-function createServerConnection($port, $host = 0) {
-    $serverSocket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
-    socket_set_option($serverSocket, SOL_SOCKET, SO_REUSEADDR, 1);
-    socket_bind($serverSocket, $host, $port);
-    return $serverSocket;
-}
-
-function waitForIncomingMessageFromClients($clients, $serverSocket) {
-    $readList = $clients;
-    $readList[] = $serverSocket;
-    $writeList = $exceptionList = [];
-    socket_select($readList, $writeList, $exceptionList, null);
-    return $readList;
-}
-
-function disconnectClient($clientSocket, &$listOfConnectedClients, &$clientInfo, &$clientsWithData) {
-    if (($key = array_search($clientSocket, $clientsWithData)) !== false) {
-        unset($clientsWithData[$key]);
-    }
-    if (($key = array_search($clientSocket, $listOfConnectedClients)) !== false) {
-        unset($listOfConnectedClients[$key]);
-        unset($clientInfo[(int)$clientSocket]);
-    }
-    socket_close($clientSocket);
-    echo "Client disconnected\n";
-}
-
-function performHandshake($clientSocket) {
-    $len = @socket_recv($clientSocket, $headers, 1024, 0);
-    if ($len === false || $len == 0) return false;
-
-    $headers = explode("\r\n", $headers);
-    $headerArray = [];
-    foreach ($headers as $header) {
-        $parts = explode(": ", $header);
-        if (count($parts) === 2) {
-            $headerArray[$parts[0]] = $parts[1];
+        } catch (err) {
+            console.error('Invalid JSON from server:', err);
         }
     }
 
-    if (!isset($headerArray['Sec-WebSocket-Key'])) return false;
+    <?php if ($loggedIn): ?>
+        screenName = <?php echo json_encode($_SESSION['screenName']); ?>;
 
-    $secKey = $headerArray['Sec-WebSocket-Key'];
-    $uuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-    $secAccept = base64_encode(pack('H*', sha1($secKey . $uuid)));
+        function initWebSocket() {
+            ws = new WebSocket(`ws://${window.location.hostname}:8090`);
 
-    $handshakeResponse = "HTTP/1.1 101 Switching Protocols\r\n" .
-        "Upgrade: websocket\r\n" .
-        "Connection: Upgrade\r\n" .
-        "Sec-WebSocket-Accept: $secAccept\r\n\r\n";
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                ws.send(JSON.stringify({ action: 'getRooms' }));
+            };
 
-    socket_write($clientSocket, $handshakeResponse, strlen($handshakeResponse));
-    return true;
-}
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'rooms') {
+                    const roomList = document.getElementById('room-list');
+                    roomList.innerHTML = '';
+                    data.rooms.forEach(room => {
+                        const div = document.createElement('div');
+                        div.className = 'd-flex text-center py-2 px-3 border-bottom';
 
-function unmask($payload) {
-    if (strlen($payload) == 0) return "";
-    $length = ord($payload[1]) & 127;
+                        const nameDiv = document.createElement('div');
+                        nameDiv.className = 'flex-fill';
+                        nameDiv.textContent = room.name;
 
-    if ($length == 126) {
-        $masks = substr($payload, 4, 4);
-        $data = substr($payload, 8);
-    } elseif ($length == 127) {
-        $masks = substr($payload, 10, 4);
-        $data = substr($payload, 14);
-    } else {
-        $masks = substr($payload, 2, 4);
-        $data = substr($payload, 6);
-    }
+                        const statusDiv = document.createElement('div');
+                        statusDiv.className = 'flex-fill';
+                        const img = document.createElement('img');
+                        img.src = room.roomkey ? 'images/lock.png' : 'images/unlock.jpeg';
+                        img.alt = room.roomkey ? 'Locked' : 'Unlocked';
+                        img.style.width = img.style.height = '20px';
+                        statusDiv.appendChild(img);
 
-    $unmaskedtext = '';
-    for ($i = 0; $i < strlen($data); ++$i) {
-        $unmaskedtext .= $data[$i] ^ $masks[$i % 4];
-    }
-    return $unmaskedtext;
-}
+                        const joinDiv = document.createElement('div');
+                        joinDiv.className = 'flex-fill';
+                        const btn = document.createElement('button');
+                        btn.className = 'btn btn-sm btn-primary';
+                        btn.textContent = 'Join';
+                        btn.addEventListener('click', () => {
+                            const isLocked = !!room.roomkey;
+                            joinRoom(room.name, isLocked);
+                        });
+                        joinDiv.appendChild(btn);
 
-function mask($message) {
-    $frame = [];
-    $frame[0] = 129;
-    $length = strlen($message);
+                        div.append(nameDiv, statusDiv, joinDiv);
+                        roomList.appendChild(div);
+                    });
+                } else if (data.type === 'message' && data.roomId === currentRoomId) {
+                    const isMe = data.sender === screenName;
+                    const messageEl = document.createElement('div');
+                    messageEl.textContent = (isMe ? 'me: ' : data.sender + ': ') + data.message;
+                    document.getElementById('chatMessages').appendChild(messageEl);
+                } else if (data.type === 'error') {
+                    alert(data.message);
+                }
+            };
 
-    if ($length <= 125) {
-        $frame[1] = $length;
-    } elseif ($length <= 65535) {
-        $frame[1] = 126;
-        $frame[2] = ($length >> 8) & 255;
-        $frame[3] = $length & 255;
-    } else {
-        $frame[1] = 127;
-        for ($i = 0; $i < 8; $i++) {
-            $frame[2 + $i] = ($length >> (56 - 8 * $i)) & 255;
+            document.getElementById('chatForm')?.addEventListener('submit', (e) => {
+                e.preventDefault();
+                if (!currentRoomId) return alert('Join a room first.');
+                const msg = document.getElementById('inputMessage').value.trim();
+                if (!msg) return;
+                ws.send(JSON.stringify({
+                    action: 'message',
+                    roomId: currentRoomId,
+                    sender: screenName,
+                    message: msg
+                }));
+                document.getElementById('inputMessage').value = '';
+            });
         }
-    }
 
-    foreach (str_split($message) as $char) {
-        $frame[] = ord($char);
-    }
-
-    return implode(array_map("chr", $frame));
-}
+        window.onload = () => {
+            fetch('chatroom.php')
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('chatroom').innerHTML = html;
+                    initWebSocket();
+                });
+        };
+    <?php endif; ?>
+    </script>
+</body>
+</html>
