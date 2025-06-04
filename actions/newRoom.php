@@ -12,4 +12,3 @@
     <div id="createRoomMsg" class="mt-2 text-danger"></div>
   </div>
 </div>
-

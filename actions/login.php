@@ -27,7 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['screenName'] = $screenName;
             echo json_encode([
                 'success' => true,
-                'message' => 'Login successful'
+                'message' => 'Login successful',
+                'screenName' => $screenName
             ]);
         } else {
             // Wrong password
